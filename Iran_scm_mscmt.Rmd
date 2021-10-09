@@ -1,0 +1,291 @@
+---
+title: "Iranian Revolutions as an empirical case study with the SCM"
+author: "Serhat Hasancebi"
+date: "05/09/2021"
+output: pdf_document
+toc: true
+toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## PACKAGES NECESSARY
+```{r all the packages we need for analysis, include=FALSE}
+library(Synth)   #to check
+library(MSCMT)   #to check  
+library(ggplot2)
+library(tables)
+library(xtable)
+library(gtools)
+library(Hmisc)   #to check
+library(lattice)
+library(Formula)
+library(survival) #to check
+library(readstata13) 
+library(openxlsx)
+library(statsr)  #to check
+library(car)   #to check
+library(pampe) #to check
+library(data.table) 
+library(dplyr) 
+library(glmnet) #to check
+library(haven) #For stata!
+library(tidyverse)
+library(zipR) #to check
+library(xlsx)
+```
+
+## DATA
+```{r load the data and see the descriptive data}
+Iran <- read.csv("gdp.csv")
+dim(Iran)
+colnames(Iran)
+head(Iran)
+```
+
+
+```{r check the data of Iran}
+# des <- Iran %>% select(Id, year, CountryName, gdp) %>% filter(CountryName=="Iran")
+# ggplot(des, aes(x=year, y= gdp, continent=CountryName)) +
+#   geom_line()
+```
+
+```{r make loops for starting with the modelling}
+SCM <- 1 # Synthetic Control Method. 1: yes Otherwise: no
+
+```
+
+
+## SYNTH COMPUTATIONS
+```{r Computation with synth-MSCMT}
+if (SCM == 1) {
+  
+  # INITIALS
+  First_period <- 1960
+  Treatment_period <- 1978
+  Last_PT_period <- Treatment_period - 1
+  Last_period <- 1980
+  Treated <- 23
+  
+  
+  
+  # READING IN A STATA DATA SET
+  # Data <- read_dta("pwt91_Macau.dta"), stata reader until 15 with tidyverse and haven
+  Data <- read.csv("gdp.csv")
+  
+  
+  # READING IN AN EXCEL DATA SET
+  # In this case, you need to convert the format of the 
+  # "cname" variable: from "factor" to "character":
+  # Uncomment the next 3 lines 
+  # Data <- read.xlsx("Smoking_Data_Set.xlsx", sheetName = "Data")
+  # cname <- as.character(Data$cname)
+  # Data$cname <- cname
+  
+  #____________________________________________________________
+  # A VISUAL INSPECTION OF THE DATA
+  glimpse(Data)
+  
+  
+  #____________________________________________________________
+  # DATA PREPARATION
+  print(" ")
+  print("====================================================")
+  print("Data preparation")
+  # data prep for main model
+  dataprep.out <-
+    dataprep(
+      foo = Data, 
+      # NORMAL Predictors
+      # Averages for the time.predictors.prior
+      predictors    = NULL,
+      dependent     = "gdp",
+      unit.variable = "Id",
+      time.variable = "year",
+      # SPECIAL Predictors: 
+      # i) Averages for sub-periods, and
+      # ii) Individual lagged values of the outcome variable
+      special.predictors = list(
+        list("gdp", 1960,"mean"),
+        list("gdp", 1971,"mean"),
+        list("gdp", 1974,"mean"),
+        list("gdp", 1963,"mean"),
+        list("gdp", 1965,"mean"),
+        list("gdp", 1976,"mean"),
+        list("gdp", 1977,"mean"),
+        list("gcf", 1973:1977,"mean"),
+        list("fce", 1973:1977,"mean"),
+        list("retail", 1972:1977,"mean"),
+        list("fertility", 1970:1977,"mean"),
+        list("export", 1972:1977,"mean")),
+      
+      
+      # CARDINAL of the treated
+      treatment.identifier = Treated,
+      
+      # ORDINAL of the treated. In "this" case, it coincides with the cardinal
+      controls.identifier = unique(Data$Id)[-23],
+      
+      # Period for which the means of NORMAL predictors 
+      # are computed
+      time.predictors.prior = First_period:Last_PT_period,
+      # Period for which the PRE-MSPE is minimized, 
+      # in this case, the whole PRE-TREATMENT PERIOD, 
+      time.optimize.ssr = First_period:Last_PT_period,
+      unit.names.variable = "CountryName",
+      time.plot = First_period:Last_period
+    )
+  
+  print("dataprep.out")		 
+  ls(dataprep.out)
+  
+  
+  
+  
+  print(" ") 
+  print(" ")
+  print(" ")
+  print("=====================================================")
+  print(" COMPUTATION OF THE SYNTHETIC: 3rd option")
+  print("=====================================================")
+  set.seed(1)
+  mscmt.out <- mscmt(dataprep.out,
+                     single.v = TRUE,
+                     verbose = FALSE,
+                     inner.optim = "wnnlsOpt",
+                     outer.optim = "DEoptC"
+                     # OPTIONS FOR outer.optim = "DEoptC"
+                     # outer.opar = list(nG = 500, nP = 100, waitgen = 100,
+                     #  minimpr = 0.0001, F = 0.5, CR = 0.9)
+  )
+  print("linea 373")
+  str(mscmt.out)
+  
+  
+  #____________________________________________________________
+  # RESULTS 
+  # str(mscmt.out)
+  Table_of_Predictors <- mscmt.out$predictor.table
+  print(Table_of_Predictors)
+  
+  print("SOLUTION:")
+  print(mscmt.out)
+  Y_observed  <- mscmt.out$data.treat$Y
+  Y_synthetic <- mscmt.out$data.synth$Y
+  
+  # Checking the Average Gap and the effect in 2000 
+  Gap   <- as.numeric(Y_observed - Y_synthetic)
+  Gap_1 <- Gap[19:21]
+  Average_Gap <- mean(Gap_1) 
+  print(paste("Average_Gap:", Average_Gap)) 
+  Year <- Data$year[1:21]
+  output_mscmt <- data.frame(Y_observed,Y_synthetic,Year)
+  
+  
+  p_iran <- ggplot(output_mscmt, aes(x=Year)) +
+    geom_rect(xmin = output_mscmt$Year[18], ymin = -Inf, xmax =      output_mscmt$Year[21], ymax =  Inf,
+                     fill = "lightgray") +
+    geom_line(aes(y=Y_observed, col="Iran"),lwd = 1.2) + 
+    geom_line(aes(y=Y_synthetic, col="Synthetic Iran"),linetype="twodash",lwd = 0.7) + 
+    labs(title="", 
+         y="per capita real GDP (1990 Int. $)", size=20, 
+         color=NULL) +  # title and caption
+    ylim(0,10000) +
+    theme(axis.text=element_text(size=12),
+          
+          axis.title=element_text(size=14,face="italic"))+
+    # theme(axis.text.x = element_text(face="bold", color="black", 
+    #                                  size=14, angle=0))  +
+    annotate("segment", x = output_mscmt$Year[17], xend =            output_mscmt$Year[18], y = 1, yend = 1,
+             colour = "blue", size = .4, arrow = arrow()) +
+    annotate("text", x = output_mscmt$Year[15], y = 1, label =       "Islamic Revolution")+
+    geom_vline(xintercept=as.numeric(output_mscmt$Year[18]), linetype=4,color = "red")+
+    # theme(axis.text.x = element_text(angle = 0, vjust=0.5, size = 8.5),  # rotate x axis text
+    #       panel.grid.minor = element_blank())  +# turn off minor grid
+    scale_color_manual(name="", 
+                       values = c("Iran"="blue", "Synthetic Iran"="red")) +
+    theme(legend.position = c(0.2, 0.9)) +
+    theme(panel.grid.minor = element_blank()) + # turn off minor grid
+    theme(
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 15)) 
+  
+  print(p_iran)
+
+     
+  
+  print(p_iran)
+  ggsave(filename = "IRAN_SCM.eps", 
+         plot = p_iran, 
+         device = "eps", 
+         dpi = 1200, 
+         width = 15,
+         height = 10, 
+         units = "cm")
+   ggsave(filename = "IRAN_SCM.pdf", 
+         plot = p_iran, 
+         device = "pdf", 
+         dpi = 1200, 
+         width = 15,
+         height = 10, 
+         units = "cm")
+  
+}
+
+```
+
+
+
+## Figure_3 Gap
+```{r  Figure_3 Gap}
+  Predictors <- mscmt.out$predictor.table
+  # Next line, if uncommented, produces huge output
+  # str(IS_PLACEBO)
+  GAPS <- mscmt.out$gaps$Y
+  # Saving the results in a Stata file
+  Time <- c(First_period:Last_period)
+  GAPS <- cbind(Time, GAPS)
+  GAPS <- data.frame(GAPS)
+  GAPS <- GAPS %>% rename(
+    Year = Time,
+    Gap = GAPS
+    )
+  save.dta13(data = GAPS, file = "Placebo_GAPS.dta")
+p_gap <- ggplot(GAPS, aes(x=Year)) +
+    geom_rect(xmin = GAPS$Year[18], ymin = -Inf, xmax =      GAPS$Year[21], ymax =  Inf, fill = "lightgray") +
+    geom_line(aes(y=Gap, col="Iran"),lwd = 1.2) + 
+   
+    labs(title="", 
+         y="per capita real GDP gap (1990 Int. $)", size=20, 
+         color=NULL) +  # title and caption
+    ylim(-5000,500) +
+    theme(axis.text=element_text(size=12),
+          
+          axis.title=element_text(size=14,face="italic"))+
+    # theme(axis.text.x = element_text(face="bold", color="black", 
+    #                                  size=14, angle=0))  +
+    annotate("segment", x = GAPS$Year[17], xend =            GAPS$Year[18], y = -4000, yend = -4000,
+             colour = "blue", size = .4, arrow = arrow()) +
+    annotate("text", x = GAPS$Year[15], y = -4000, label =       "Islamic Revolution")+
+    geom_vline(xintercept=as.numeric(GAPS$Year[18]), linetype=4,color = "red")+
+    # theme(axis.text.x = element_text(angle = 0, vjust=0.5, size = 8.5),  # rotate x axis text
+    #       panel.grid.minor = element_blank())  +# turn off minor grid
+    scale_color_manual(name="", 
+                       values = c("Iran"="blue")) +
+    theme(legend.position = c(0.2, 0.1)) +
+    theme(panel.grid.minor = element_blank()) + # turn off minor grid
+    theme(
+      legend.title = element_text(size = 18),
+      legend.text = element_text(size = 15)) 
+
+print(p_gap)
+
+
+
+```
+
+
+
+
