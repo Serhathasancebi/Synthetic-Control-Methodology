@@ -1,5 +1,5 @@
 # Synthetic-Control-Methodology
-SCM as a case study measuring the causal impact of the Islamic Revolution on Iranian Economy
+SCM as a case study measuring the causal impact of the Islamic Revolution on the Iranian Economy
 
 
 The SCM illustrates a hypothetical counterfactual unit by taking the weighted average of pre-intervention outcomes from selected donor units. The donor units that are combined to form the synthetic control are selected from a pool of potential candidates. Predictor
