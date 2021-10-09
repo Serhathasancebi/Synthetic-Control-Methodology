@@ -15,3 +15,11 @@ In practice, interventions may have an impact prior to their implementation (e.g
 The treatment effect for the treated unit in period t is given by:
 
 α1t ≡ Y^1_1t - Y^0_1t.
+
+Note that in this application the synthetic control estimator has been applied with the Multivariate Synthetic Control Method Using Time Series (MSCMT) package, see for details  (Becker and Klößner, 2017, 2018).
+
+For the article where we implement the SCM with different optimization techniques and software packages, see https://www.worldscientific.com/doi/abs/10.1142/S0217590820420072.
+
+Further information, serhat.hasancebi@gmail.com.
+
+Enjoy.
