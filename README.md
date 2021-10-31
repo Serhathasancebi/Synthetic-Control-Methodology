@@ -1,4 +1,10 @@
 # Synthetic-Control-Methodology
+
+# Serhat Hasancebi - Quantitative Finance and Economics, University of the Basque Country
+
+# R Markdown file for the SCM, install necessary packages before everything,                                                            # and note that if you leave open # "install packages" syntax knit file may give an error.
+# You can download, however, packages through Tools -> install.packages as well.
+
 SCM as a case study measuring the causal impact of the Islamic Revolution on the Iranian Economy
 
 
